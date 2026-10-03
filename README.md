@@ -24,12 +24,15 @@ integrated rather than left for you to assemble.
 | Verbosity | [`verbose-code-trim`](skills/verbose-code-trim/SKILL.md) | Cut ceremony without touching logic: over-explicit checks, boolean ceremony, passthrough wrappers, comment-code echoes — diff must read like subtraction. |
 | Organization | [`repo-organize`](skills/repo-organize/SKILL.md) | Map functional modules, score debt 0-100 per module with independent audits, pay debt worst-first with per-commit regression gates. |
 | Agent stack | [`agent-regression`](skills/agent-regression/SKILL.md) | Treat the agent itself as a system under test: manifest every behavior-affecting file (hashed) and runtime knob, replay golden production tasks before/after any model/prompt/skill/tool change, gate on drift — with a runnable manifest tool (`tools/stack_manifest.py`) and golden-case schema. |
+| Live processes | [`live-probe`](skills/live-probe/SKILL.md) | Run the REAL code against a REAL live process — imported from the checkout, no mocks — and read every observable: worker fate (heartbeat-growth ground truth), entry fate, the hidden INFO-level log trail, return values. Plus a move-blast-radius scanner: worktree back-pointers, live cwd processes, and the measured cost of full-tree walks before any quarantine/move/delete design ships. Born from a maintainer's live probe catching what our own green fixture suite could not (hermes-agent#132401). |
 
 **How they compose:** `repo-organize` aims the sweep skills
 (`dead-code-sweep`, `dedup-sweep`, `verbose-code-trim`) at the worst modules;
 every sweep's edits pass through `verification-gates`; `probe-first` turns bug
-reports into red proofs before any fix; `measure-first` backs every
-performance word; `prose-hygiene` keeps the words between the code honest.
+reports into red proofs before any fix; `live-probe` settles what fixtures
+cannot — real processes, real back-pointers — before retention/move designs
+ship; `measure-first` backs every performance word; `prose-hygiene` keeps the
+words between the code honest.
 
 ## Included, credited, integrated
 

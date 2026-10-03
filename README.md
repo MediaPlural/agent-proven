@@ -23,6 +23,7 @@ integrated rather than left for you to assemble.
 | Dead code | [`dead-code-sweep`](skills/dead-code-sweep/SKILL.md) | Two escalating proofs: unconsumed (zero references, indirect vectors checked) and unnecessary (wrappers, compat shims, defensive branches hiding impossible states). |
 | Verbosity | [`verbose-code-trim`](skills/verbose-code-trim/SKILL.md) | Cut ceremony without touching logic: over-explicit checks, boolean ceremony, passthrough wrappers, comment-code echoes — diff must read like subtraction. |
 | Organization | [`repo-organize`](skills/repo-organize/SKILL.md) | Map functional modules, score debt 0-100 per module with independent audits, pay debt worst-first with per-commit regression gates. |
+| Agent stack | [`agent-regression`](skills/agent-regression/SKILL.md) | Treat the agent itself as a system under test: manifest every behavior-affecting file (hashed) and runtime knob, replay golden production tasks before/after any model/prompt/skill/tool change, gate on drift — with a runnable manifest tool (`tools/stack_manifest.py`) and golden-case schema. |
 
 **How they compose:** `repo-organize` aims the sweep skills
 (`dead-code-sweep`, `dedup-sweep`, `verbose-code-trim`) at the worst modules;

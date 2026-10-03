@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "agent-regression golden case",
+  "description": "One frozen production-derived task for before/after replay against an agent stack.",
+  "type": "object",
+  "required": ["case_id", "input", "criteria"],
+  "additionalProperties": false,
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "description": "Stable identifier; production failures keep the ticket/trace id."
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["production-failure", "production-known-good", "synthetic"],
+      "description": "Goldens grow from real work; synthetic allowed for coverage gaps, marked."
+    },
+    "input": {
+      "type": "string",
+      "description": "The exact task/request given to the agent, frozen."
+    },
+    "initial_state": {
+      "type": "object",
+      "description": "Fixed starting state: file tree seed, env vars, profile seed. Same across runs."
+    },
+    "fixtures": {
+      "type": "object",
+      "description": "Recorded tool responses keyed by call signature: replay must not hit live services."
+    },
+    "allowed_tools": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Tool allowlist for the run; absent = default toolset."
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "family", "statement"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tool_called", "tool_not_called",
+              "field_value", "forbidden_pattern",
+              "file_changed", "exit_code",
+              "required_fact", "rubric_1_5"
+            ],
+            "description": "Deterministic kinds gate; required_fact/rubric_1_5 are judged (review-only by default)."
+          },
+          "family": {
+            "type": "string",
+            "enum": ["deterministic", "judged"]
+          },
+          "statement": {
+            "type": "string",
+            "description": "The behavior asserted, in one sentence a reviewer can check."
+          },
+          "expect": {
+            "description": "The expected value: string/number/bool/pattern per kind."
+          },
+          "tolerance": {
+            "type": "number",
+            "description": "Judged only: allowed mean drop from baseline before review."
+          }
+        }
+      }
+    },
+    "history": {
+      "type": "array",
+      "description": "Superseded expectations with dates+reasons — what the agent used to do, kept visible.",
+      "items": {"type": "object"}
+    }
+  }
+}

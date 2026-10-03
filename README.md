@@ -1,55 +1,81 @@
 # agent-proven
 
-**Verification gates and quality tooling for AI coding agents — every "done" backed by evidence.**
+**Full-suite verification and quality tooling for AI coding agents — every claim backed by evidence.**
 
-A growing library of agent skills that make coding agents *prove* their work
-before reporting done. Born from real escape analysis: a single probe build
-produced ~14 defects across 6 model-revision cycles, and every escape traced
-to a skipped verification step. Instead of "try harder," these skills encode
-the checks that catch what rationalization misses.
+A complete library of agent skills covering the quality spectrum: verification
+before "done," probe-first debugging, measured performance, prose hygiene,
+duplication sweeps, dead-code removal, verbosity trimming, and whole-repo
+organization. One install covers the scenarios; the suites compose.
 
-## Why another skill library?
+Born from real escape analysis — every rule traces to a defect that actually
+shipped, and the peer ecosystem's best ideas are included, credited, and
+integrated rather than left for you to assemble.
 
-Because reinventing wheels is a quality bug. This library exists to:
+## The Suites
 
-1. **Distill observed failure modes** into checkable gates — every rule here
-   traces to a defect that actually shipped, not an imagined one.
-2. **Not duplicate the ecosystem.** Before any skill lands here, we search
-   the existing landscape (obra/superpowers, prove-it, make-no-mistakes,
-   production-ai, and others) and either adapt-and-credit or fill a gap we
-   can name.
-3. **Improve in the open.** Others' improvements are the point — see
-   CONTRIBUTING.md.
+| Suite | Skill | What it does |
+|---|---|---|
+| Verification | [`verification-gates`](skills/verification-gates/SKILL.md) | Five checkable gates between "agent said done" and "proven": red-proof, baseline-delta, lint-triage, finding spot-checks, independent verification. |
+| Debugging | [`probe-first`](skills/probe-first/SKILL.md) | Reproduce the bug with a probe that goes RED before any fix — concurrency, ordering, and environment probe archetypes; the probe becomes the regression test. |
+| Performance | [`measure-first`](skills/measure-first/SKILL.md) | No performance claim without before/after measurement — base measured first, deltas reported honestly (including null results). |
+| Prose | [`prose-hygiene`](skills/prose-hygiene/SKILL.md) | Grammar, typo, and clarity sweep for comments, docstrings, commit messages, docs — meaning preserved absolutely, identifiers never "corrected." |
+| Duplication | [`dedup-sweep`](skills/dedup-sweep/SKILL.md) | Detect clone families, decide per family (extract / parameterize / delete / keep, with reasons), execute one family per commit with regression gates. |
+| Dead code | [`dead-code-sweep`](skills/dead-code-sweep/SKILL.md) | Two escalating proofs: unconsumed (zero references, indirect vectors checked) and unnecessary (wrappers, compat shims, defensive branches hiding impossible states). |
+| Verbosity | [`verbose-code-trim`](skills/verbose-code-trim/SKILL.md) | Cut ceremony without touching logic: over-explicit checks, boolean ceremony, passthrough wrappers, comment-code echoes — diff must read like subtraction. |
+| Organization | [`repo-organize`](skills/repo-organize/SKILL.md) | Map functional modules, score debt 0-100 per module with independent audits, pay debt worst-first with per-commit regression gates. |
 
-## Skills
+**How they compose:** `repo-organize` aims the sweep skills
+(`dead-code-sweep`, `dedup-sweep`, `verbose-code-trim`) at the worst modules;
+every sweep's edits pass through `verification-gates`; `probe-first` turns bug
+reports into red proofs before any fix; `measure-first` backs every
+performance word; `prose-hygiene` keeps the words between the code honest.
 
-| Skill | What it does |
-|---|---|
-| [`verification-gates`](skills/verification-gates/SKILL.md) | Five checkable gates between "agent said done" and "proven": red-proof, baseline-delta, lint-triage, finding spot-checks, independent verification. |
+## Included, credited, integrated
+
+Our CONTRIBUTING rule 1 applies to us first. Where the ecosystem already
+built the right idea, these suites include it — adapted, credited in each
+skill's frontmatter lineage, and wired into this library's gate battery
+rather than left as seven separate installs:
+
+- [obra/superpowers](https://github.com/obra/Superpowers) —
+  `verification-before-completion` is the archetype `verification-gates`
+  extends (hermes-agent itself adapts obra's TDD/debugging skills).
+- [niuma996/code-hygiene-skills](https://github.com/niuma996/code-hygiene-skills) —
+  the clone-family detect/decide/execute model behind `dedup-sweep`.
+- [danhuaxiansheng/claude-code-cleanup-skills](https://github.com/danhuaxiansheng/claude-code-cleanup-skills) —
+  the used-vs-necessary distinction behind `dead-code-sweep`'s two tiers.
+- [Asixa/codemap-skill](https://github.com/Asixa/codemap-skill) — the
+  module-map/scoring model behind `repo-organize`.
+- [jeremylongshore/claude-code-plugins-plus-skills](https://github.com/jeremylongshore/claude-code-plugins-plus-skills) —
+  the 11-dimension cleanup taxonomy informing `verbose-code-trim` targets.
+- [Pablo-aps/prove-it](https://github.com/Pablo-aps/prove-it),
+  [momomuchu/make-no-mistakes](https://github.com/momomuchu/make-no-mistakes),
+  [jimtin/production-ai](https://github.com/jimtin/production-ai) — the
+  adversarial-verification and enforcement traditions this library sits among
+  and composes with (install alongside for hard enforcement machinery).
+
+If a peer does a job better than a suite here, PR the improvement — or PR the
+peer credit correction. Both are wanted.
 
 ## Installation
 
-Skills here follow the open Agent Skills standard (a `SKILL.md` with
-frontmatter) and install into any compatible runtime:
+Skills follow the open Agent Skills standard (`SKILL.md` + frontmatter):
 
-**Claude Code** (skills live in `~/.claude/skills/`):
+**Claude Code** (`~/.claude/skills/`):
 ```bash
 git clone https://github.com/MediaPlural/agent-proven ~/.agent-proven
-ln -s ~/.agent-proven/skills/verification-gates ~/.claude/skills/verification-gates
+for s in verification-gates probe-first measure-first prose-hygiene \
+         dedup-sweep dead-code-sweep verbose-code-trim repo-organize; do
+  ln -s ~/.agent-proven/skills/$s ~/.claude/skills/$s
+done
 ```
 
-**OpenAI Codex** (`~/.agents/skills/`):
-```bash
-ln -s ~/.agent-proven/skills/verification-gates ~/.agents/skills/verification-gates
-```
+**OpenAI Codex** (`~/.agents/skills/`) and **Cursor**
+(`.cursor/skills/` / `.agents/skills/`): same symlink loop into the
+runtime's directory.
 
-**Cursor** (`.cursor/skills/` or `.agents/skills/`):
-```bash
-ln -s ~/.agent-proven/skills/verification-gates ~/.cursor/skills/verification-gates
-```
-
-**Hermes Agent**: copy to `~/.hermes/skills/software-development/verification-gates/`
-or use `hermes skills` installation if the repo is published to the catalog.
+**Hermes Agent**: copy to
+`~/.hermes/skills/software-development/<name>/` per skill.
 
 ## Design principles
 
@@ -59,20 +85,17 @@ or use `hermes skills` installation if the repo is published to the catalog.
 - **Delta attribution.** Failures your change didn't cause are environmental —
   proven by baseline, not asserted.
 - **Counts are hard assertions.** "Found N issues" is verified by re-counting.
-- **Adapt, credit, or gap.** Never publish what the ecosystem already has
-  without credit; never duplicate what a peer does better.
+- **Measure or delete the word.** Performance claims carry numbers or get cut.
+- **Include, credit, integrate.** The ecosystem's best ideas ship here,
+  credited — completeness over purity, attribution over appropriation.
+
+## Contributing
+
+Improvements are the point — see [CONTRIBUTING.md](CONTRIBUTING.md). Two
+rules: search-before-write (adapt+credit / extend / fill-a-named-gap) and
+evidence-required (every gate change attaches the observed failure it
+prevents).
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Credits
-
-- `verification-gates` extends the tradition of
-  [obra/superpowers](https://github.com/obra/superpowers)'
-  `verification-before-completion`, with gates drawn from observed agent
-  escape analysis.
-- The broader verification ecosystem this library deliberately sits among:
-  [prove-it](https://github.com/Pablo-aps/prove-it),
-  [make-no-mistakes](https://github.com/momomuchu/make-no-mistakes),
-  [production-ai](https://github.com/jimtin/production-ai).

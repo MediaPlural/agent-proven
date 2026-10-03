@@ -65,6 +65,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Probe the mid-prune write race (C1/F1 class).")
     ap.add_argument("--checkout", required=True, type=Path)
     ap.add_argument("--idle-hours", type=float, default=25.0)
+    ap.add_argument(
+        "--window", choices=["reap", "rmtree"], default="reap",
+        help="reap: write lands during the reap phase (after selection, before the "
+             "deletion loop) — closed by re-validation. rmtree: write lands inside "
+             "the rmtree call itself (after re-validation) — the atomic-delete "
+             "residual, expected RED until a rename-based design lands.",
+    )
     args = ap.parse_args()
 
     mod = import_scratch_module(args.checkout)
@@ -105,35 +112,47 @@ def main() -> int:
         cwd=str(base),  # outside scratch
     )
 
-    # We cannot hook inside prune_idle_entries, so we approximate the
-    # resumption window the way the finding describes it: the doomed list
-    # is snapshotted at call time. A write that lands AFTER selection but
-    # BEFORE the deletion loop is what dies. To place our write in that
-    # window deterministically, we patch rmtree to fire the marker (the
-    # deletion loop has started; selection is long done) and wait for the
-    # writer to finish BEFORE letting the real rmtree proceed.
-    real_rmtree = shutil.rmtree
-    fired: list[str] = []
+    report: dict = {"checkout": str(args.checkout), "window": args.window}
 
-    def rmtree_marker_then_delete(path, *a, **kw):
-        if doomed_entry == Path(path):
-            marker.write_text("go\n", encoding="utf-8")
-            writer.wait(timeout=15)
-            fired.append("mid-deletion write completed")
-        return real_rmtree(path, *a, **kw)
+    def fire_and_wait() -> None:
+        marker.write_text("go\n", encoding="utf-8")
+        writer.wait(timeout=15)
 
-    mod.shutil.rmtree = rmtree_marker_then_delete
+    if args.window == "reap":
+        # Write lands between selection and the deletion loop: hook the reap.
+        real_reap = getattr(mod, "reap_processes_rooted_in")
 
-    report: dict = {"checkout": str(args.checkout)}
-    try:
-        removed = mod.prune_idle_entries(root, args.idle_hours, frozenset())
+        def reap_then_write(root, doomed_list, *a, **kw):
+            fire_and_wait()
+            return real_reap(root, doomed_list, *a, **kw)
+
+        mod.reap_processes_rooted_in = reap_then_write  # type: ignore[attr-defined]
+        try:
+            removed = mod.prune_idle_entries(root, args.idle_hours, frozenset())
+        finally:
+            mod.reap_processes_rooted_in = real_reap  # type: ignore[attr-defined]
         report["prune_return"] = removed
-    finally:
-        mod.shutil.rmtree = real_rmtree
+    else:
+        # Write lands inside the rmtree call — after re-validation. This is the
+        # atomic-delete residual: expected RED on every logging/re-validation
+        # patch by construction, GREEN only under a rename-based design.
+        real_rmtree = shutil.rmtree
+
+        def rmtree_write_then_delete(path, *a, **kw):
+            if doomed_entry == Path(path):
+                fire_and_wait()
+            return real_rmtree(path, *a, **kw)
+
+        mod.shutil.rmtree = rmtree_write_then_delete
+        try:
+            removed = mod.prune_idle_entries(root, args.idle_hours, frozenset())
+        finally:
+            mod.shutil.rmtree = real_rmtree
+        report["prune_return"] = removed
 
     wr = writer.wait(timeout=5)
     report["writer_exit"] = wr
-    report["marker_fired"] = bool(fired)
+    report["marker_fired"] = marker.exists()
     report["fresh_write_survived"] = fresh_path.exists()
     report["doomed_entry_exists"] = doomed_entry.exists()
     report["control_survived"] = control.exists()
@@ -141,10 +160,15 @@ def main() -> int:
     print(json.dumps(report, indent=2))
     print("── human read ──")
     if report["fresh_write_survived"]:
-        print("VERDICT: fresh mid-prune write SURVIVED — race closed")
+        print(f"VERDICT [{args.window}-window]: fresh mid-prune write SURVIVED")
     else:
-        print("VERDICT: fresh mid-prune write DESTROYED — stale-candidate race present (C1/F1)")
-        print("         (the write landed after selection; the deletion loop took the entry anyway)")
+        if args.window == "reap":
+            print("VERDICT [reap-window]: fresh write DESTROYED — selection race present (C1/F1)")
+        else:
+            print(
+                "VERDICT [rmtree-window]: fresh write DESTROYED — atomic-delete residual "
+                "(expected RED under re-validation; needs rename-based design)"
+            )
 
     shutil.rmtree(base, ignore_errors=True)
     return 0

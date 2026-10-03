@@ -88,6 +88,24 @@ ships:
 python tools/tree_move_blast_radius.py --path <dir> [--path <dir> ...]
 ```
 
+### 3. `tools/midflight_write_race_probe.py` — does a write landing mid-prune survive?
+
+The concurrency-gap method (andrexibiza's C1/F1 reproduction on #132401,
+packaged): stage a REAL writer that fires at a controlled moment relative
+to the REAL prune call — cwd outside scratch (so the reap never targets
+it), writing fresh content into a doomed entry AFTER selection, BEFORE
+deletion. Observe: did the fresh write survive?
+
+- RED on current main and on any logging-only patch: the doomed list is
+  snapshotted at call time, so the deletion loop takes the entry — fresh
+  work included. This is why an audit PR must never claim race closure.
+- GREEN when a coordination/lease fix lands: same probe proves the fix,
+  red to green.
+
+```bash
+python tools/midflight_write_race_probe.py --checkout <dir-with-target-module>
+```
+
 ## Procedure
 
 1. **State the claim to falsify** — one sentence: "the reap path kills a
@@ -111,6 +129,16 @@ python tools/tree_move_blast_radius.py --path <dir> [--path <dir> ...]
   file outlives the process. Growth across a measured window is the only
   cross-platform truth. `os.kill(pid, 0)` is a Windows trap (it TERMINATES
   the process on win32) — do not use it as a liveness check.
+- **A count is an audit receipt only if it claims confirmed removals.**
+  `rmtree(ignore_errors=True)` swallows failures — increment a removal
+  count only after the entry is confirmed gone, and record `residue` /
+  `failed` states explicitly (andrexibiza's C2 on #132401: "do not turn
+  the current integer into an audit receipt without fixing its meaning" —
+  caught a real over-report our own review round had passed).
+- **Reproduce the concurrency window, don't infer it from wreckage.** A
+  mid-prune resumption race is proven by staging a controlled write at a
+  controlled moment relative to the real call (midflight probe above) —
+  post-hot forensics cannot distinguish "raced" from "already stale".
 - **Fixtures prove intent; live probes prove behavior.** A green fixture
   suite on retention code means the author's model of the reap was wrong,
   not that the code is right. Run both: fixtures for regressions, live
@@ -121,6 +149,10 @@ python tools/tree_move_blast_radius.py --path <dir> [--path <dir> ...]
 - **Read the code's own log trail at INFO+** — the failure this suite
   exists for was invisible partly because the only record lived at INFO
   under a WARNING root logger. Capture records, don't grep the console.
+- **Verify the sink, not just the call.** An INFO call proves nothing
+  until you confirm it reaches the intended file on every boot path —
+  early-boot prunes can fire before the file handler installs (verified
+  on our own install: the prune records never appear in `agent.log`).
 - **Moves break back-pointers** — `.git` files, `.pid` files, state files,
   any external path reference. Scan before designing any move.
 - **Price the walk before logging it** — full-tree byte walks have real

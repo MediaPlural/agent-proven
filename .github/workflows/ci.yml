@@ -1,0 +1,56 @@
+name: CI
+
+# This is a SKILLS repository — it ships no compiled artifact, so its tests are
+# structural. A skill whose frontmatter cannot be parsed is invisible to every
+# agent that would otherwise load it: silent at authoring time, total at use
+# time. That is the defect class this gate exists to catch.
+#
+# Injection note (reviewed, no action needed): no `${{ }}` expression here reads
+# an event payload. The only interpolation is `matrix.python-version`, whose
+# values are the literal list defined below in this same file.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: validate skills (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Every SKILL.md parses, is named, and carries a usable trigger
+        run: python .github/validate_skills.py .
+
+      - name: Every probe tool is syntactically valid
+        run: python -m compileall -q skills
+
+      - name: Every JSON schema is parseable
+        run: |
+          python - <<'PY'
+          import json, glob, sys
+          files = [f for f in glob.glob("**/*.json", recursive=True)
+                   if ".git/" not in f]
+          bad = []
+          for f in files:
+              try:
+                  json.load(open(f, encoding="utf-8"))
+              except Exception as exc:
+                  bad.append("%s: %s" % (f, exc))
+          print("parsed %d JSON file(s)" % len(files))
+          for b in bad:
+              print("FAIL: " + b)
+          print("%d failure(s)" % len(bad))
+          sys.exit(1 if bad else 0)
+          PY
